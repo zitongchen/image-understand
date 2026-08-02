@@ -9,7 +9,7 @@ description: 使用兼容 OpenAI Responses API 的识图模型进行云端识图
 
 ## 环境要求
 
-- Node.js 20+（本机已具备）
+- Node.js 20+
 - 识图模型 API Key：复制 `scripts/.env.example` 为 `scripts/.env` 并填入 `VISION_API_KEY=sk-...`，也可以设置同名环境变量
 - 模型名（必填）：`VISION_MODEL=qwen3.7-flash`，推荐使用百炼大模型 qwen3.7-flash；不填则脚本会拒绝调用
 - 可联网访问所配置的 OpenAI 兼容接口（任意支持多模态输入的识图模型服务均可，不限于特定厂商）
