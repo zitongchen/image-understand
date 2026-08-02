@@ -1,0 +1,4 @@
+interface:
+  display_name: "Image Understand"
+  short_description: "描述图片、问答、提取图中文字"
+  default_prompt: "Use $image-understand 简要描述图片的内容"
