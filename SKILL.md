@@ -42,7 +42,7 @@ VISION_REASONING_EFFORT=none      # 可选：none/minimal/low/medium/high
 - 未配置 Key、模型或接口地址：提示用户填写 `scripts/.env` 中的 `VISION_API_KEY` / `VISION_MODEL` / `VISION_BASE_URL`。
 - 文件不存在或格式不支持：转述脚本报错，并列出支持格式（jpg/jpeg/png/gif/webp/bmp）。
 - API 401：Key 无效或未开通服务，提示检查 Key 与模型服务开通状态。
-- API 429、5xx 或超时：稍后重试一次；仍失败则如实告知用户。
+- API 429、5xx、超时或空响应：脚本会自动重试，最多重试 2 次（共 3 次请求）；全部失败后如实告知用户。
 
 ## 注意事项
 

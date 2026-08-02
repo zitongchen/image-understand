@@ -24,7 +24,18 @@ const DEFAULT_PROMPT = "请简要描述图片的内容。";
 const DEFAULT_PROMPT_MULTI = "请简要描述这些图片的内容。";
 const TIMEOUT_MS = 120000;
 const MAX_OUTPUT_TOKENS = 1024;
+const MAX_RETRIES = 2; // 空响应或临时故障时的最大重试次数（共 MAX_RETRIES + 1 次请求）
+const RETRY_DELAY_MS = 1000; // 重试间隔基数，按第几次重试递增（1s、2s）
 const MIME_MAP = { jpg: "jpeg", jpeg: "jpeg", png: "png", gif: "gif", webp: "webp", bmp: "bmp" };
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function markRetryable(err) {
+  err.retryable = true;
+  return err;
+}
 
 // 简易 .env 解析（KEY=VALUE，支持 # 注释与引号），不依赖 dotenv
 function loadEnvFile() {
@@ -153,7 +164,7 @@ function sanitizeText(text) {
   return text.replace(/^\s*<\/think>\s*/i, "").trim();
 }
 
-async function callResponses(config, imageUrls, prompt) {
+async function callResponsesOnce(config, imageUrls, prompt) {
   const url = `${config.baseUrl}/responses`;
   const content = [{ type: "input_text", text: prompt }];
   for (const imageUrl of imageUrls) {
@@ -179,14 +190,16 @@ async function callResponses(config, imageUrls, prompt) {
     });
   } catch (err) {
     if (err.name === "TimeoutError" || err.name === "AbortError") {
-      throw new Error(`请求超时（${TIMEOUT_MS / 1000} 秒），请稍后重试`);
+      throw markRetryable(new Error(`请求超时（${TIMEOUT_MS / 1000} 秒），请稍后重试`));
     }
-    throw new Error(`网络请求失败: ${err.message}`);
+    throw markRetryable(new Error(`网络请求失败: ${err.message}`));
   }
 
   const raw = await res.text();
   if (!res.ok) {
-    throw new Error(extractApiError(raw, res.status));
+    const err = new Error(extractApiError(raw, res.status));
+    if (res.status === 429 || res.status >= 500) markRetryable(err);
+    throw err;
   }
 
   let parsed;
@@ -198,9 +211,23 @@ async function callResponses(config, imageUrls, prompt) {
 
   const text = extractOutputText(parsed);
   if (!text) {
-    throw new Error(`模型未返回文字内容（status=${parsed.status || "unknown"}）`);
+    throw markRetryable(new Error(`模型未返回文字内容（status=${parsed.status || "unknown"}）`));
   }
   return { text: sanitizeText(text), usage: parsed.usage || null, model: parsed.model || config.model };
+}
+
+async function callResponses(config, imageUrls, prompt) {
+  let lastError;
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    if (attempt > 0) await sleep(RETRY_DELAY_MS * attempt);
+    try {
+      return await callResponsesOnce(config, imageUrls, prompt);
+    } catch (err) {
+      lastError = err;
+      if (!err.retryable) throw err;
+    }
+  }
+  throw lastError;
 }
 
 async function main() {
